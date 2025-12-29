@@ -1,78 +1,56 @@
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "../firebase";
+type DsaRegressionResult = {
+  risk: number;
+  confidence: "low" | "medium" | "high";
+  daysSinceLast: number;
+  recentPracticeDays: number;
+  topicCount: number;
+};
 
-export async function calculateDsaRegressionRisk(uid: string) {
-  const q = query(collection(db, "activity_logs"), where("uid", "==", uid));
+export async function calculateDsaRegressionRisk(
+  uid: string
+): Promise<DsaRegressionResult> {
+  const { db } = await import("@/lib/firebase");
+  if (!db) throw new Error("Firestore not initialized");
 
-  const snapshot = await getDocs(q);
-
-  const logs: {
-    date: Date;
-    practiced: boolean;
-    topics: string[];
-  }[] = [];
-
-  snapshot.forEach((doc) => {
-    const d = doc.data();
-    logs.push({
-      date: new Date(d.date),
-      practiced: d.dsa.practiced,
-      topics: d.dsa.topics || [],
-    });
-  });
-
-  if (logs.length === 0) {
-    return { risk: 0.8, confidence: "low" };
-  }
-
-  logs.sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  const today = new Date();
-
-  const practicedLogs = logs.filter((l) => l.practiced);
-
-  if (practicedLogs.length === 0) {
-    return { risk: 0.8, confidence: "low" };
-  }
-
-  const lastPractice = practicedLogs[practicedLogs.length - 1].date;
-
-  const daysSinceLast = Math.floor(
-    (today.getTime() - lastPractice.getTime()) / (1000 * 60 * 60 * 24)
+  const { collection, query, where, getDocs, Timestamp } = await import(
+    "firebase/firestore"
   );
 
-  let risk = 0.2;
-  if (daysSinceLast >= 7) risk = 0.8;
-  else if (daysSinceLast >= 4) risk = 0.6;
-  else if (daysSinceLast >= 2) risk = 0.4;
+  const since = Timestamp.fromDate(
+    new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
+  );
 
-  // Frequency (last 14 days)
-  const fourteenDaysAgo = new Date();
-  fourteenDaysAgo.setDate(today.getDate() - 14);
+  const q = query(
+    collection(db, "activity_logs"),
+    where("uid", "==", uid),
+    where("date", ">=", since)
+  );
 
-  const recentPracticeDays = practicedLogs.filter(
-    (l) => l.date >= fourteenDaysAgo
-  ).length;
+  const snap = await getDocs(q);
 
-  if (recentPracticeDays <= 2) risk += 0.1;
-  if (recentPracticeDays >= 6) risk -= 0.1;
+  let lastPractice = 999;
+  let days = new Set<string>();
+  let topics = new Set<string>();
 
-  // Topic diversity
-  const topicSet = new Set<string>();
-  practicedLogs.forEach((l) => l.topics.forEach((t) => topicSet.add(t)));
+  snap.forEach((doc) => {
+    const d = doc.data();
+    if (d.dsa?.practiced) {
+      days.add(d.date);
+      d.dsa.topics?.forEach((t: string) => topics.add(t));
+      lastPractice = 0;
+    }
+  });
 
-  if (topicSet.size <= 1) risk += 0.1;
+  const recentPracticeDays = days.size;
+  const topicCount = topics.size;
 
-  // Clamp
-  risk = Math.min(0.8, Math.max(0.2, risk));
-
-  const confidence = practicedLogs.length >= 7 ? "high" : "medium";
+  const risk = lastPractice > 7 ? 0.7 : recentPracticeDays < 3 ? 0.4 : 0.1;
 
   return {
     risk,
-    confidence,
-    daysSinceLast,
+    confidence: snap.size >= 5 ? "medium" : "low",
+    daysSinceLast: lastPractice,
     recentPracticeDays,
-    topicCount: topicSet.size,
+    topicCount,
   };
 }

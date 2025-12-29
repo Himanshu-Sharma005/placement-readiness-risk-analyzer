@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -11,7 +11,16 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
-const app = initializeApp(firebaseConfig);
+function createFirebaseApp() {
+  if (typeof window === "undefined") {
+    // ⛔ Server / build time — do nothing
+    return null;
+  }
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+  return getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+}
+
+const app = createFirebaseApp();
+
+export const auth = app ? getAuth(app) : null;
+export const db = app ? getFirestore(app) : null;

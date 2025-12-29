@@ -1,47 +1,46 @@
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "../firebase";
+type ConsistencyRiskResult = {
+  risk: number;
+  confidence: "low" | "medium" | "high";
+  maxGapDays: number;
+};
 
-export async function calculateConsistencyRisk(uid: string) {
-  const q = query(collection(db, "activity_logs"), where("uid", "==", uid));
+export async function calculateConsistencyRisk(
+  uid: string
+): Promise<ConsistencyRiskResult> {
+  const { db } = await import("@/lib/firebase");
+  if (!db) throw new Error("Firestore not initialized");
 
-  const snapshot = await getDocs(q);
+  const { collection, query, where, orderBy, getDocs } = await import(
+    "firebase/firestore"
+  );
 
-  const dates: Date[] = [];
+  const q = query(
+    collection(db, "activity_logs"),
+    where("uid", "==", uid),
+    orderBy("date", "asc")
+  );
 
-  snapshot.forEach((doc) => {
-    const data = doc.data();
-    dates.push(new Date(data.date));
-  });
+  const snap = await getDocs(q);
 
-  // No data = maximum risk
-  if (dates.length === 0) {
-    return {
-      risk: 0.8,
-      confidence: "low",
-      maxGapDays: null,
-    };
-  }
-
-  // Sort dates ascending
-  dates.sort((a, b) => a.getTime() - b.getTime());
-
+  let last: Date | null = null;
   let maxGap = 0;
 
-  for (let i = 1; i < dates.length; i++) {
-    const gapMs = dates[i].getTime() - dates[i - 1].getTime();
-    const gapDays = Math.floor(gapMs / (1000 * 60 * 60 * 24));
-    maxGap = Math.max(maxGap, gapDays);
-  }
+  snap.forEach((doc) => {
+    const d = new Date(doc.data().date);
+    if (last) {
+      const gap = Math.floor(
+        (d.getTime() - last.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      maxGap = Math.max(maxGap, gap);
+    }
+    last = d;
+  });
 
-  let risk = 0.2;
-  if (maxGap >= 7) risk = 0.8;
-  else if (maxGap >= 4) risk = 0.5;
-
-  const confidence = dates.length >= 10 ? "high" : "medium";
+  const risk = maxGap > 7 ? 0.7 : maxGap > 3 ? 0.4 : 0.1;
 
   return {
     risk,
-    confidence,
+    confidence: snap.size >= 7 ? "high" : "low",
     maxGapDays: maxGap,
   };
 }

@@ -1,52 +1,64 @@
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "../firebase";
+type ProjectFragilityResult = {
+  risk: number;
+  confidence: "low" | "medium" | "high";
+  projectDays: number;
+  layersTouched: string[];
+  bugFixEvidence: boolean;
+};
 
-export async function calculateProjectFragilityRisk(uid: string) {
-  const q = query(collection(db, "activity_logs"), where("uid", "==", uid));
+export async function calculateProjectFragilityRisk(
+  uid: string
+): Promise<ProjectFragilityResult> {
+  // 🔒 Lazy Firebase import (SSR-safe)
+  const { db } = await import("@/lib/firebase");
+  if (!db) throw new Error("Firestore not initialized");
 
-  const snapshot = await getDocs(q);
-
-  const projectLogs = snapshot.docs
-    .map((d) => d.data())
-    .filter((d) => d.project?.touched);
-
-  if (projectLogs.length === 0) {
-    return {
-      risk: 0.8,
-      confidence: "low",
-      projectDays: 0,
-      layersTouched: [],
-      bugFixEvidence: false,
-    };
-  }
-
-  let risk = 0.3;
-
-  // Distinct layers
-  const layerSet = new Set<string>();
-  projectLogs.forEach((d) =>
-    (d.project.layersWorked || []).forEach((l: string) => layerSet.add(l))
+  const { collection, query, where, getDocs } = await import(
+    "firebase/firestore"
   );
 
-  if (layerSet.size === 1) risk += 0.2;
-  else if (layerSet.size === 2) risk += 0.1;
+  const q = query(collection(db, "activity_logs"), where("uid", "==", uid));
 
-  // Iteration depth
-  if (projectLogs.length <= 2) risk += 0.1;
+  const snap = await getDocs(q);
 
-  // Bug fix signal
-  const hasBugFix = projectLogs.some((d) => d.project.bugFix);
-  if (!hasBugFix) risk += 0.1;
+  let projectDays = 0;
+  const layers = new Set<string>();
+  let bugFixEvidence = false;
 
-  risk = Math.min(0.8, Math.max(0.3, risk));
+  snap.forEach((doc) => {
+    const d = doc.data();
 
-  const confidence = projectLogs.length >= 5 ? "high" : "medium";
+    if (d.project?.touched) {
+      projectDays++;
+
+      if (Array.isArray(d.project.layersWorked)) {
+        d.project.layersWorked.forEach((l: string) => layers.add(l));
+      }
+
+      if (d.project.bugFix === true) {
+        bugFixEvidence = true;
+      }
+    }
+  });
+
+  // ---- Risk logic (deterministic, explainable) ----
+  let risk: number;
+
+  if (projectDays === 0) {
+    risk = 0.9; // no real project work
+  } else if (layers.size <= 1) {
+    risk = 0.7; // shallow projects
+  } else if (!bugFixEvidence) {
+    risk = 0.5; // no maintenance / debugging
+  } else {
+    risk = 0.2; // healthy project depth
+  }
 
   return {
     risk,
-    confidence,
-    projectDays: projectLogs.length,
-    layersTouched: Array.from(layerSet),
-    bugFixEvidence: hasBugFix,
+    confidence: projectDays >= 5 ? "medium" : "low",
+    projectDays,
+    layersTouched: Array.from(layers),
+    bugFixEvidence,
   };
 }

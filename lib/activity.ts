@@ -1,7 +1,10 @@
-import { db } from "./firebase";
 import { doc, setDoc } from "firebase/firestore";
 
 export async function logTodayActivity(uid: string) {
+  // 🔒 Lazy-load Firebase ONLY when function is called (runtime-safe)
+  const { db } = await import("./firebase");
+  if (!db) throw new Error("Firestore not initialized");
+
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const docId = `${uid}_${today}`;
 
