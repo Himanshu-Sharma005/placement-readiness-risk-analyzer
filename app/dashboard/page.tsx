@@ -2,8 +2,6 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 
 import { calculateConsistencyRisk } from "@/lib/risk/r3Consistency";
 import { calculateDsaRegressionRisk } from "@/lib/risk/r1DsaRegression";
@@ -15,8 +13,14 @@ import DominantRisks from "../../components/DominantRisks";
 import RiskDetails from "../../components/RiskDetails";
 import Disclaimer from "../../components/Disclaimer";
 
+/**
+ * 🔒 DEMO MODE
+ * Auth is intentionally disabled in production builds.
+ * Replace with real UID when running locally.
+ */
+const DEMO_UID = "demo_user";
+
 export default function DashboardPage() {
-  const [uid, setUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [r1, setR1] = useState<any>(null);
@@ -25,44 +29,34 @@ export default function DashboardPage() {
   const [overall, setOverall] = useState<any>(null);
 
   useEffect(() => {
-    if (!auth) {
-      // Server / build phase — do nothing
-      setLoading(false);
-      return;
+    async function runRiskModel() {
+      try {
+        const r1 = await calculateDsaRegressionRisk(DEMO_UID);
+        const r2 = await calculateProjectFragilityRisk(DEMO_UID);
+        const r3 = await calculateConsistencyRisk(DEMO_UID);
+
+        setR1(r1);
+        setR2(r2);
+        setR3(r3);
+
+        const overallRisk = calculateOverallRisk(r1, r2, r3);
+        setOverall(overallRisk);
+      } catch (err) {
+        console.error("Risk calculation failed:", err);
+      } finally {
+        setLoading(false);
+      }
     }
 
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setUid(null);
-        setLoading(false);
-        return;
-      }
-
-      setUid(user.uid);
-
-      const r1 = await calculateDsaRegressionRisk(user.uid);
-      const r2 = await calculateProjectFragilityRisk(user.uid);
-      const r3 = await calculateConsistencyRisk(user.uid);
-
-      setR1(r1);
-      setR2(r2);
-      setR3(r3);
-
-      const overallRisk = calculateOverallRisk(r1, r2, r3);
-      setOverall(overallRisk);
-
-      setLoading(false);
-    });
-
-    return () => unsub();
+    runRiskModel();
   }, []);
 
   if (loading) {
     return <div className="p-8">Loading risk model…</div>;
   }
 
-  if (!uid || !overall) {
-    return <div className="p-8">Please log in.</div>;
+  if (!overall) {
+    return <div className="p-8">Risk data unavailable.</div>;
   }
 
   return (
@@ -70,6 +64,7 @@ export default function DashboardPage() {
       <h1 className="text-3xl font-semibold tracking-tight">
         Placement Readiness Risk Analyzer
       </h1>
+
       <p className="text-sm text-gray-400">
         Diagnostic risk view based on recent preparation behavior
       </p>

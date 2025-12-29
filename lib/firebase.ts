@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
+import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -11,14 +11,12 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-
-// ✅ Firestore is SSR-safe
-export const db = getFirestore(app);
-
-// ⛔ Auth must ONLY initialize on client
-export let auth: Auth | null = null;
-
-if (typeof window !== "undefined") {
-  auth = getAuth(app);
+function createFirebaseApp() {
+  if (typeof window === "undefined") return null;
+  return getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 }
+
+const app = createFirebaseApp();
+
+export const auth = app ? getAuth(app) : null;
+export const db = app ? getFirestore(app) : null;
