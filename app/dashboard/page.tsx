@@ -24,6 +24,12 @@ export default function DashboardPage() {
   const [overall, setOverall] = useState<any>(null);
 
   useEffect(() => {
+    if (!auth) {
+      // Server / build phase — do nothing
+      setLoading(false);
+      return;
+    }
+
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setUid(null);
@@ -33,16 +39,17 @@ export default function DashboardPage() {
 
       setUid(user.uid);
 
-      const [r1v, r2v, r3v] = await Promise.all([
-        calculateDsaRegressionRisk(user.uid),
-        calculateProjectFragilityRisk(user.uid),
-        calculateConsistencyRisk(user.uid),
-      ]);
+      const r1 = await calculateDsaRegressionRisk(user.uid);
+      const r2 = await calculateProjectFragilityRisk(user.uid);
+      const r3 = await calculateConsistencyRisk(user.uid);
 
-      setR1(r1v);
-      setR2(r2v);
-      setR3(r3v);
-      setOverall(calculateOverallRisk(r1v, r2v, r3v));
+      setR1(r1);
+      setR2(r2);
+      setR3(r3);
+
+      const overallRisk = calculateOverallRisk(r1, r2, r3);
+      setOverall(overallRisk);
+
       setLoading(false);
     });
 
