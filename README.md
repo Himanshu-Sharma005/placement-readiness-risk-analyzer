@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Placement Readiness Risk Analyzer (PRRA)
 
-## Getting Started
+PRRA is a **deterministic diagnostic system** that estimates how risky a student’s current preparation trajectory is for placement interviews.
 
-First, run the development server:
+This project **does not predict placement outcomes**.  
+It quantifies **risk** based on observable preparation behavior.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Why this project exists
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Most “placement trackers” are glorified to-do lists.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+PRRA is different. It is designed to demonstrate the ability to:
 
-## Learn More
+- Model an abstract, real-world problem
+- Define clear system boundaries
+- Make defensible assumptions
+- Quantify uncertainty without machine learning
+- Explain *why* a result was produced, not just *what*
 
-To learn more about Next.js, take a look at the following resources:
+This project was intentionally built **without AI or ML** to keep the logic auditable and explainable.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Core Concept
 
-## Deploy on Vercel
+PRRA estimates:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+> **“Given recent preparation behavior, how risky is this student’s trajectory?”**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+It evaluates *risk drivers*, not outcomes.
+
+---
+
+## Risk Dimensions Modeled
+
+The current version models three independent, deterministic risk factors:
+
+### R1 — DSA Regression Risk
+Evaluates consistency and recency of DSA practice:
+- Days since last practice
+- Number of active practice days
+- Topic diversity
+
+### R2 — Project Fragility Risk
+Evaluates depth of hands-on project work:
+- Number of project-active days
+- Breadth of layers touched (e.g., frontend, backend, debugging)
+- Evidence of maintenance or bug-fixing
+
+### R3 — Consistency Collapse Risk
+Evaluates preparation continuity:
+- Longest inactivity gap
+- Pattern of engagement over time
+
+---
+
+## Overall Risk Envelope
+
+Individual risks are combined using a deterministic envelope:
+
+- Technical risk is weighted (DSA + Projects)
+- Behavioral collapse risk acts as an upper bound
+- Final output includes:
+  - Risk score (0–1)
+  - Risk label (Low / Moderate / High)
+  - Confidence level based on data sufficiency
+
+---
+
+## What PRRA Is *Not*
+
+- ❌ Not a placement predictor  
+- ❌ Not company-specific  
+- ❌ Not resume parsing  
+- ❌ Not ML-based  
+- ❌ Not a recommendation engine  
+
+These were intentionally excluded to keep the model interpretable.
+
+---
+
+## Tech Stack
+
+- **Frontend**: Next.js (App Router), React, TypeScript
+- **Styling**: Tailwind CSS (minimal, dashboard-first)
+- **Data Source**: Mocked behavioral data (demo-safe)
+- **Logic**: Pure deterministic scoring functions
+
+> Firebase integration was explored during development but is intentionally **disabled in the demo build** to ensure stability and reproducibility.
+
+---
+
+## Project Structure (Simplified)
+
