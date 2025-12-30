@@ -94,3 +94,27 @@ These were intentionally excluded to keep the model interpretable.
 
 ## Project Structure (Simplified)
 
+app/
+├─ dashboard/ # Main risk dashboard
+├─ login/ # Authentication UI (demo)
+components/
+├─ OverallRiskCard
+├─ DominantRisks
+├─ RiskDetails
+└─ Disclaimer
+lib/
+├─ risk/ # Deterministic risk models (R1, R2, R3)
+├─ mock/ # Demo data
+
+
+
+---
+
+## Running Locally
+
+```bash
+npm install
+npm run dev
+
+Open http://localhost:3000/dashboard
+
